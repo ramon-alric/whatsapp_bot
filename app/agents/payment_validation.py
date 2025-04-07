@@ -3,6 +3,7 @@ import cv2
 import pytesseract
 import re
 import logging
+import os
 from sqlalchemy import create_engine, Column, Integer, String, Float
 from sqlalchemy.orm import sessionmaker, declarative_base
 
@@ -31,6 +32,19 @@ class PurchaseOrder(Base):
     amount = Column(Float, nullable=False)
     status = Column(String, nullable=False)
 
+def setup_database():
+    """Crea la conexión a la base de datos y retorna la sesión."""
+    try:
+        # Use the environment variable for database connection
+        database_url = os.getenv("DATABASE_URL", "postgresql://postgres:password@localhost:5432/knife_store")
+        engine = create_engine(database_url)
+        Base.metadata.create_all(engine)
+        Session = sessionmaker(bind=engine)
+        return Session()
+    except Exception as e:
+        logger.error(f"Error al conectar con la base de datos: {e}")
+        raise
+
 class PaymentAgent(KnifeStoreAgent):
     """
     Agente especializado en la validación de pagos a través de imágenes.
@@ -50,7 +64,8 @@ class PaymentAgent(KnifeStoreAgent):
             """,
             verbose=True
         )
-        self.db_session = db_session
+        # If no session is provided, create one
+        self.db_session = db_session if db_session is not None else setup_database()
         # Diccionario para almacenar el estado de confirmación de órdenes por usuario
         # Key: número de teléfono, Value: {'status': 'awaiting_confirmation', 'order_number': '123456'}
         self.confirmation_state = {}
